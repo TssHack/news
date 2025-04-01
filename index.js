@@ -1,44 +1,10 @@
 const express = require('express');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const fs = require('fs');
-
-class NewsCache {
-    constructor(cacheFile = 'news_cache.json', expireHours = 2) {
-        this.cacheFile = cacheFile;
-        this.cacheExpiry = expireHours * 3600 * 1000;
-    }
-
-    get() {
-        if (!fs.existsSync(this.cacheFile)) return null;
-        const content = fs.readFileSync(this.cacheFile, 'utf-8');
-        if (!content) return null;
-
-        try {
-            const cache = JSON.parse(content);
-            if (!cache.timestamp || !cache.data) return null;
-            if (Date.now() - cache.timestamp > this.cacheExpiry) return null;
-            return cache.data;
-        } catch {
-            return null;
-        }
-    }
-
-    set(data) {
-        const cache = { timestamp: Date.now(), data };
-        fs.writeFileSync(this.cacheFile, JSON.stringify(cache, null, 2), 'utf-8');
-    }
-
-    clear() {
-        if (fs.existsSync(this.cacheFile)) fs.unlinkSync(this.cacheFile);
-    }
-}
 
 class NewsScraper {
     constructor() {
         this.BASE_URL = 'https://akharinkhabar.ir';
-        this.NEWS_LIMIT = 50;
-        this.cache = new NewsCache();
     }
 
     async fetchHTML(url) {
@@ -52,7 +18,7 @@ class NewsScraper {
             });
             return response.data;
         } catch (error) {
-            console.error(`Error fetching ${url}:`, error.message);
+            console.error(`❌ Error fetching ${url}:`, error.message);
             return null;
         }
     }
@@ -95,9 +61,6 @@ class NewsScraper {
     }
 
     async scrapeAkharinKhabar() {
-        const cachedNews = this.cache.get();
-        if (cachedNews) return { developer: "Developed by @IlIlIlIlIIlIlIlIlIl", news: cachedNews };
-
         const allNews = [];
         const pages = ['/?type=comment', '/', '/most-visited'];
 
@@ -124,20 +87,18 @@ class NewsScraper {
             });
         }
 
-        if (allNews.length === 0) return { developer: "Developed by @IlIlIlIlIIlIlIlIlIl", error: 'No news found.' };
+        if (allNews.length === 0) return { developer: "Developed by @abj0o", error: 'No news found.' };
 
-        const uniqueNews = allNews.slice(0, this.NEWS_LIMIT);
-
-        for (let i = 0; i < uniqueNews.length; i++) {
-            uniqueNews[i].content = await this.getNewsContent(uniqueNews[i].link);
+        // دریافت محتوای اخبار
+        for (let i = 0; i < allNews.length; i++) {
+            allNews[i].content = await this.getNewsContent(allNews[i].link);
         }
 
-        this.cache.set(uniqueNews);
-        return { developer: "Developed by @abj0o", news: uniqueNews };
+        return { developer: "Developed by @abj0o", news: allNews };
     }
 }
 
-// Create Express server
+// ایجاد سرور Express
 const app = express();
 const scraper = new NewsScraper();
 
@@ -145,7 +106,7 @@ app.get('/', (req, res) => {
     res.send('🚀 News Web Service is running. Use /news to get the latest news.');
 });
 
-// Endpoint to fetch news
+// دریافت اخبار
 app.get('/news', async (req, res) => {
     try {
         const news = await scraper.scrapeAkharinKhabar();
@@ -155,13 +116,7 @@ app.get('/news', async (req, res) => {
     }
 });
 
-// Endpoint to clear cache
-app.get('/clear-cache', (req, res) => {
-    scraper.cache.clear();
-    res.json({ developer: "Developed by @abj0o", message: 'Cache cleared.' });
-});
-
-// Start server
+// شروع سرور
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`✅ Server running on port ${PORT}`);
