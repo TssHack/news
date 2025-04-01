@@ -9,14 +9,14 @@ class NewsScraper {
 
     async fetchHTML(url) {
         try {
-            const response = await axios.get(url, {
+            const { data } = await axios.get(url, {
                 headers: {
                     'User-Agent': 'Mozilla/5.0',
                     'Accept-Encoding': 'gzip, deflate, br',
                     'Accept-Language': 'en-US,en;q=0.9'
                 }
             });
-            return response.data;
+            return data;
         } catch (error) {
             console.error(`❌ Error fetching ${url}:`, error.message);
             return null;
@@ -26,10 +26,7 @@ class NewsScraper {
     getFullUrl(url) {
         if (!url) return null;
         url = url.trim();
-        if (url.startsWith('http')) return url;
-        if (url.startsWith('//')) return 'https:' + url;
-        if (url.startsWith('/')) return this.BASE_URL + url;
-        return null;
+        return url.startsWith('http') ? url : `${this.BASE_URL}${url.startsWith('/') ? url : '/' + url}`;
     }
 
     async getNewsContent(url) {
@@ -61,38 +58,33 @@ class NewsScraper {
     }
 
     async scrapeAkharinKhabar() {
-        const allNews = [];
         const pages = ['/?type=comment', '/', '/most-visited'];
+        const requests = pages.map(page => this.fetchHTML(this.BASE_URL + page));
+        const responses = await Promise.all(requests);
 
-        for (let page of pages) {
-            const targetUrl = this.BASE_URL + page;
-            const html = await this.fetchHTML(targetUrl);
+        const allNews = [];
+        for (const html of responses) {
             if (!html) continue;
-
             const $ = cheerio.load(html);
+
             $('article.rectangle_container__rBE5L').each((i, el) => {
                 const title = $(el).find('h4.rectangle_news_title__VvUoG').text().trim();
-                const link = $(el).find('a').attr('href');
-                const imageUrl = $(el).find('img.rectangle_news_image__fcCG2').attr('data-src') || 
-                                 $(el).find('img.rectangle_news_image__fcCG2').attr('src');
+                const link = this.getFullUrl($(el).find('a').attr('href'));
+                const image = this.getFullUrl($(el).find('img.rectangle_news_image__fcCG2').attr('data-src') || 
+                                              $(el).find('img.rectangle_news_image__fcCG2').attr('src'));
 
                 if (title && link) {
-                    allNews.push({
-                        title,
-                        link: this.getFullUrl(link),
-                        image: this.getFullUrl(imageUrl),
-                        content: '[Fetching...]'
-                    });
+                    allNews.push({ title, link, image });
                 }
             });
         }
 
         if (allNews.length === 0) return { developer: "Developed by @abj0o", error: 'No news found.' };
 
-        // دریافت محتوای اخبار
-        for (let i = 0; i < allNews.length; i++) {
-            allNews[i].content = await this.getNewsContent(allNews[i].link);
-        }
+        // دریافت محتوا به‌صورت هم‌زمان
+        await Promise.all(allNews.map(async (news) => {
+            news.content = await this.getNewsContent(news.link);
+        }));
 
         return { developer: "Developed by @abj0o", news: allNews };
     }
