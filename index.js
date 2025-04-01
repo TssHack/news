@@ -151,14 +151,14 @@ app.get('/news', async (req, res) => {
         const news = await scraper.scrapeAkharinKhabar();
         res.json(news);
     } catch (error) {
-        res.status(500).json({ developer: "Developed by @IlIlIlIlIIlIlIlIlIl", error: 'Error fetching news' });
+        res.status(500).json({ developer: "Developed by @abj0o", error: 'Error fetching news' });
     }
 });
 
 // Endpoint to clear cache
 app.get('/clear-cache', (req, res) => {
     scraper.cache.clear();
-    res.json({ developer: "Developed by @IlIlIlIlIIlIlIlIlIl", message: 'Cache cleared.' });
+    res.json({ developer: "Developed by @abj0o", message: 'Cache cleared.' });
 });
 
 // Start server
